@@ -1,9 +1,7 @@
 # Projects 
 my sql project based on the 8 week sql challenge online.
 
-Question and Solution
-
--Data Exploration
+Data Exploration
 1. What day of the week is used for each week_date value?
 
 SELECT DISTINCT(TO_CHAR(week_date, 'day')) AS week_day 
