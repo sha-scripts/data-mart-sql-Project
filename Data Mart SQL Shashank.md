@@ -244,7 +244,212 @@ GROUP BY 1,
          2
 ORDER BY 1,
          2;
-``` 
+```
+
+ C. Before & After Analysis
+
+This technique is usually used when we inspect an important event and want to inspect the impact before and after a certain point in time.
+
+Taking the `week_date` value of `2020-06-15` as the baseline week where the Data Mart sustainable packaging changes came into effect. We would include all `week_date` values for `2020-06-15` as the start of the period after the change and the previous week_date values would be before.
+
+Using this analysis approach - answer the following questions:
+
+**1. What is the total sales for the 4 weeks before and after `2020-06-15`? What is the growth or reduction rate in actual values and percentage of sales?**
+
+Before we proceed, we determine the the week_number corresponding to '2020-06-15' to use it as a filter in our analysis. 
+
+````sql
+SELECT DISTINCT week_number
+FROM clean_weekly_sales
+WHERE week_date = '2020-06-15' 
+  AND calendar_year = '2020';
+````
+
+|week_number|
+|:----|
+|25|
+ 
+The `week_number` is 25. I created 2 CTEs:
+- `packaging_sales` CTE: Filter the dataset for 4 weeks before and after `2020-06-15` and calculate the sum of sales within the period.
+- `before_after_changes` CTE: Utilize a `CASE` statement to capture the sales for 4 weeks before and after `2020-06-15` and then calculate the total sales for the specified period.
+
+````sql
+WITH packaging_sales AS (
+  SELECT 
+    week_date, 
+    week_number, 
+    SUM(sales) AS total_sales
+  FROM clean_weekly_sales
+  WHERE (week_number BETWEEN 21 AND 28) 
+    AND (calendar_year = 2020)
+  GROUP BY week_date, week_number
+)
+, before_after_changes AS (
+  SELECT 
+    SUM(CASE 
+      WHEN week_number BETWEEN 21 AND 24 THEN total_sales END) AS before_packaging_sales,
+    SUM(CASE 
+      WHEN week_number BETWEEN 25 AND 28 THEN total_sales END) AS after_packaging_sales
+  FROM packaging_sales
+)
+
+SELECT 
+  after_packaging_sales - before_packaging_sales AS sales_variance, 
+  ROUND(100 * 
+    (after_packaging_sales - before_packaging_sales) 
+    / before_packaging_sales,2) AS variance_percentage
+FROM before_after_changes;
+````
+
+**Answer:**
+
+|sales_variance|variance_percentage|
+|:----|:----|
+|-26884188|-1.15|
+
+Since the implementation of the new sustainable packaging, there has been a decrease in sales amounting by $26,884,188 reflecting a negative change at 1.15%. Introducing a new packaging does not always guarantee positive results as customers may not readily recognise your product on the shelves due to the change in packaging.
+
+***
+
+**2. What about the entire 12 weeks before and after?**
+
+We can apply a similar approach and solution to address this question. 
+
+````sql
+WITH packaging_sales AS (
+  SELECT 
+    week_date, 
+    week_number, 
+    SUM(sales) AS total_sales
+  FROM clean_weekly_sales
+  WHERE (week_number BETWEEN 13 AND 37) 
+    AND (calendar_year = 2020)
+  GROUP BY week_date, week_number
+)
+, before_after_changes AS (
+  SELECT 
+    SUM(CASE 
+      WHEN week_number BETWEEN 13 AND 24 THEN total_sales END) AS before_packaging_sales,
+    SUM(CASE 
+      WHEN week_number BETWEEN 25 AND 37 THEN total_sales END) AS after_packaging_sales
+  FROM packaging_sales
+)
+
+SELECT 
+  after_packaging_sales - before_packaging_sales AS sales_variance, 
+  ROUND(100 * 
+    (after_packaging_sales - before_packaging_sales) / before_packaging_sales,2) AS variance_percentage
+FROM before_after_changes;
+````
+
+**Answer:**
+
+|sales_variance|variance_percentage|
+|:----|:----|
+|-152325394|-2.14|
+
+Looks like the sales have experienced a further decline, now at a negative 2.14%! If I'm Danny's boss, I wouldn't be too happy with the results.
+
+***
+
+**3. How do the sale metrics for these 2 periods before and after compare with the previous years in 2018 and 2019?**
+
+I'm breaking down this question to 2 parts.
+
+**Part 1: How do the sale metrics for 4 weeks before and after compare with the previous years in 2018 and 2019?**
+- Basically, the question is asking us to find the sales variance between 4 weeks before and after `'2020-06-15'` for years 2018, 2019 and 2020. Perhaps we can find a pattern here.
+- We can apply the same solution as above and add `calendar_year` into the syntax. 
+
+````sql
+WITH changes AS (
+  SELECT 
+    calendar_year,
+    week_number, 
+    SUM(sales) AS total_sales
+  FROM clean_weekly_sales
+  WHERE week_number BETWEEN 21 AND 28
+  GROUP BY calendar_year, week_number
+)
+, before_after_changes AS (
+  SELECT 
+    calendar_year,
+    SUM(CASE 
+      WHEN week_number BETWEEN 13 AND 24 THEN total_sales END) AS before_packaging_sales,
+    SUM(CASE 
+      WHEN week_number BETWEEN 25 AND 28 THEN total_sales END) AS after_packaging_sales
+  FROM changes
+  GROUP BY calendar_year
+)
+
+SELECT 
+  calendar_year, 
+  after_packaging_sales - before_packaging_sales AS sales_variance, 
+  ROUND(100 * 
+    (after_packaging_sales - before_packaging_sales) 
+    / before_packaging_sales,2) AS variance_percentage
+FROM before_after_changes;
+````
+
+**Answer:**
+
+|calendar_year|sales_variance|variance_percentage|
+|:----|:----|:----|
+|2018|4102105|0.19|
+|2019|2336594|0.10|
+|2020|-26884188|-1.15|
+
+In 2018, there was a sales variance of $4,102,105, indicating a positive change of 0.19% compared to the period before the packaging change.
+
+Similarly, in 2019, there was a sales variance of $2,336,594, corresponding to a positive change of 0.10% when comparing the period before and after the packaging change.
+
+However, in 2020, there was a substantial decrease in sales following the packaging change. The sales variance amounted to $26,884,188, indicating a significant negative change of -1.15%. This reduction represents a considerable drop compared to the previous years.
+
+**Part 2: How do the sale metrics for 12 weeks before and after compare with the previous years in 2018 and 2019?**
+- Use the same solution above and change to week 13 to 24 for before and week 25 to 37 for after.
+
+````sql
+WITH changes AS (
+  SELECT 
+    calendar_year, 
+    week_number, 
+    SUM(sales) AS total_sales
+  FROM clean_weekly_sales
+  WHERE week_number BETWEEN 13 AND 37
+  GROUP BY calendar_year, week_number
+)
+, before_after_changes AS (
+  SELECT 
+    calendar_year,
+    SUM(CASE 
+      WHEN week_number BETWEEN 13 AND 24 THEN total_sales END) AS before_packaging_sales,
+    SUM(CASE 
+      WHEN week_number BETWEEN 25 AND 37 THEN total_sales END) AS after_packaging_sales
+  FROM changes
+  GROUP BY calendar_year
+)
+
+SELECT 
+  calendar_year, 
+  after_packaging_sales - before_packaging_sales AS sales_variance, 
+  ROUND(100 * 
+    (after_packaging_sales - before_packaging_sales) 
+    / before_packaging_sales,2) AS variance_percentage
+FROM before_after_changes;
+````
+
+**Answer:**
+
+|calendar_year|sales_variance|variance_percentage|
+|:----|:----|:----|
+|2018|104256193|1.63|
+|2019|-20740294|-0.30|
+|2020|-152325394|-2.14|
+
+There was a fair bit of percentage differences in all 3 years. However, now when you compare the worst year to their best year in 2018, the sales percentage difference is even more stark at a difference of 3.77% (1.63% + 2.14%).
+
+When comparing the sales performance across all three years, there were noticeable variations in the percentage differences. However, the most significant contrast emerges when comparing the worst-performing year in 2020 to the best-performing year in 2018. In this comparison, the sales percentage difference becomes even more apparent with a significant gap of 3.77% (1.63% + 2.14%).
+
+***
 	
 #### Result set:
 ![image](https://user-images.githubusercontent.com/77529445/190840979-c7e92b09-898d-43d5-a9f6-8f12394fabbe.png)
