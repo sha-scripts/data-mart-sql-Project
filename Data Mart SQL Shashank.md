@@ -1,4 +1,4 @@
-## :shopping_cart: Case Study #5: Data Mart - Data Exploration based on the 8-week-sql challenge.(https://8weeksqlchallenge.com/case-study-5/)
+## :shopping_cart: Case Study #5: Data Mart - Data Exploration based on the 8-week-sql challenge.
 
 ## Case Study Questions
 1. What day of the week is used for each week_date value?
